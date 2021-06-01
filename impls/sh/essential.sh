@@ -174,3 +174,28 @@ _TABLE_DEC() {
 _TABLE_INC() {
   eval "TABLE_${1}_LENGTH=\$((TABLE_${1}_LENGTH+1))"
 }
+
+
+# TIMEIT - Run command, then print elapsed time to stderr (or error if exists).
+
+TIMEIT() {
+  __time_command="$1"
+  shift
+
+  __time_start="$(date +"%s.%N")"
+
+  "$__time_command" "$@"
+
+  __time_end="$(date +"%s.%N")"
+
+  {
+    if [ -z "$E" ]; then
+      __time_elapsed="$(echo "($__time_end - $__time_start) * 1000" | bc)"
+      printf "%0.2fms\n" "$__time_elapsed"
+    else
+      printf "error: %s\n" "$E"
+    fi
+  } >&2
+
+  unset __time_command __time_elapsed __time_end __time_start
+}
