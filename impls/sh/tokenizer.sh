@@ -3,7 +3,7 @@ CHR_AT() {
 }
 
 EOL_AT() {
-  ORD_AT "$1" $2
+  TABLE_GET TOKEN_ORD $1
   case $R in
     10 | 13) return 0;;
     *)       return 1;;
@@ -11,27 +11,28 @@ EOL_AT() {
 }
 
 NEXT_TOKEN() {
-  ORD_AT "$T" $S
+  TABLE_GET TOKEN_ORD $S
 
   if [ $R -le 32 ] || [ $R -eq 44 ]; then
     S=$((S+1))
     unset R; return 1
   fi
 
-  CHR_AT "$T" $S; __chr=$R
+  TABLE_GET TOKEN_CHR $S
 
-  case "$__chr" in
+  case "$R" in
     "[" | "]" | "{" | "}" | "(" | ")" | "'" | '`' | "^" | "@")
-      R="$__chr"
       S=$((S+1))
       ;;
     "~")
-      CHR_AT "$T" $((S+1))
+      R_STACK_PUSH
+      TABLE_GET TOKEN_CHR $((S+1))
       if [ "$R" = "@" ]; then
+        R_STACK_POP
         R="~@"
         S=$((S+2))
       else
-        R="$__chr"
+        R_STACK_POP
         S=$((S+1))
       fi
       ;;
@@ -39,23 +40,23 @@ NEXT_TOKEN() {
       __s=$((S+1))
       while :; do
         __s=$((__s+1))
-        if [ $__s -gt $1 ] || EOL_AT "$T" $__s; then
+        if [ $__s -gt $1 ] || EOL_AT $__s; then
           break
         fi
       done
-      S=$__s; unset __chr R __s; return 1
+      S=$__s; unset R __s; return 1
       ;;
     '"')
       __s=$((S+1))
       while :; do
-        CHR_AT "$T" $__s; __chr=$R
-        case "$__chr" in
+        TABLE_GET TOKEN_CHR $__s
+        case "$R" in
           '"')   break         ;;
           "\\")  __s=$((__s+2));;
           *)     __s=$((__s+1));;
         esac
         if [ $__s -gt $1 ]; then
-            E='expected ", got EOF'; S=$__s; unset __chr R __s; return 1
+            E='expected ", got EOF'; S=$__s; unset R __s; return 1
         fi
       done
       R="$(awk -- "BEGIN {print substr(ARGV[1], $S, $((__s-S+1)))}" "$T")"
@@ -63,7 +64,7 @@ NEXT_TOKEN() {
       ;;
     *)
       __s=$S
-      while [ $__s -le $1 ] && ! SEP_AT "$T" $__s; do
+      while [ $__s -le $1 ] && ! SEP_AT $__s; do
         __s=$((__s+1))
       done
       R="$(awk -- "BEGIN {print substr(ARGV[1], $S, $((__s-S)))}" "$T")"
@@ -71,7 +72,7 @@ NEXT_TOKEN() {
       ;;
   esac
 
-  unset __chr __s
+  unset __s
 }
 
 ORD_AT() {
@@ -81,11 +82,11 @@ ORD_AT() {
 }
 
 SEP_AT() {
-  if EOL_AT "$1" $2; then
+  if EOL_AT $1; then
     return
   fi
 
-  CHR_AT "$1" $2
+  TABLE_GET TOKEN_CHR $1
   case "$R" in
     " " | "[" | "]" | "{" | "}" | "(" | ")" | "'" | '"' | '`' | "," | ";")
       return 0
@@ -102,12 +103,26 @@ TOKENIZE() {
     T="$R"
   fi
 
-  TABLE_CLEAR TOKEN
-
   set -- $(printf "%s" "$T" | wc -m)
 
-  S=1
+  TABLE_CLEAR TOKEN
+  TABLE_CLEAR TOKEN_CHR
+  TABLE_CLEAR TOKEN_ORD
 
+  S=1
+  while [ $S -le $1 ]; do
+    R=
+    CHR_AT "$T" $S
+    R_STACK_PUSH
+    TABLE_PUSH TOKEN_CHR
+    R_STACK_POP
+    eval "R=$(printf "%d" "'$R")"
+    if [ $R -eq 0 ]; then ORD_AT "$T" $S; fi
+    TABLE_PUSH TOKEN_ORD
+    S=$((S+1))
+  done
+
+  S=1
   while [ $S -le $1 ]; do
     if NEXT_TOKEN $1; then
       TABLE_PUSH TOKEN
@@ -118,23 +133,7 @@ TOKENIZE() {
 }
 
 TOKENIZE_DEBUG() {
-  __time_start="$(date +"%s.%N")"
-
-  TOKENIZE "$@"
-
-  __time_end="$(date +"%s.%N")"
-
+  TIMEIT TOKENIZE "$@"; echo >&2
   TABLE_DUMP TOKEN
-
-  {
-    if [ -z "$E" ]; then
-      __time_elapsed="$(echo "($__time_end - $__time_start) * 1000" | bc)"
-      printf "\n%0.2fms\n" "$__time_elapsed"
-    else
-      printf "\nerror: %s\n" "$E"
-    fi
-  } >&2
-
-  unset __time_elapsed __time_end __time_start
   unset R S T
 }
