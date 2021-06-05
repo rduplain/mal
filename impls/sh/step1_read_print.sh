@@ -2,6 +2,7 @@
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
+. $DIR/ascii.sh
 . $DIR/essential.sh
 . $DIR/printer.sh
 . $DIR/reader.sh

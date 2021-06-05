@@ -1,19 +1,15 @@
-CHR_AT() {
-  R="$(awk -- "BEGIN {print substr(ARGV[1], $2, 1)}" "$1")"
-}
-
 EOL_AT() {
   TABLE_GET TOKEN_ORD $1
   case $R in
-    10 | 13) return 0;;
-    *)       return 1;;
+    012 | 015) return 0;;
+    *)         return 1;;
   esac
 }
 
 NEXT_TOKEN() {
   TABLE_GET TOKEN_ORD $S
 
-  if [ $R -le 32 ] || [ $R -eq 44 ]; then
+  if [ $R -le 040 ] || [ $R -eq 054 ]; then
     S=$((S+1))
     unset R; return 1
   fi
@@ -75,12 +71,6 @@ NEXT_TOKEN() {
   unset __s
 }
 
-ORD_AT() {
-  R=$(awk -- "BEGIN {print substr(ARGV[1], $2, 1)}" "$1" |
-        od -An -t uC |
-        awk '{ print $1 }')
-}
-
 SEP_AT() {
   if EOL_AT $1; then
     return
@@ -103,27 +93,22 @@ TOKENIZE() {
     T="$R"
   fi
 
-  set -- $(printf "%s" "$T" | wc -m)
-
   TABLE_CLEAR TOKEN
   TABLE_CLEAR TOKEN_CHR
   TABLE_CLEAR TOKEN_ORD
 
   S=1
-  while [ $S -le $1 ]; do
-    R=
-    CHR_AT "$T" $S
-    R_STACK_PUSH
-    TABLE_PUSH TOKEN_CHR
-    R_STACK_POP
-    eval "R=$(printf "%d" "'$R")"
-    if [ $R -eq 0 ]; then ORD_AT "$T" $S; fi
-    TABLE_PUSH TOKEN_ORD
+  for ord in $(printf "%s" "$T" | od -An -b -w256); do
+    eval "chr=\$CHR_$ord"
+    TABLE_PUSH TOKEN_CHR "$chr"
+    TABLE_PUSH TOKEN_ORD "$ord"
     S=$((S+1))
   done
 
+  set -- $S
+
   S=1
-  while [ $S -le $1 ]; do
+  while [ $S -lt $1 ]; do
     if NEXT_TOKEN $1; then
       TABLE_PUSH TOKEN
     fi
