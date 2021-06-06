@@ -1,6 +1,7 @@
 #!/bin/sh
 
-DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+DIR=${0%/*}
+[ -d "$DIR" ] || DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 . $DIR/ascii.sh
 . $DIR/essential.sh
