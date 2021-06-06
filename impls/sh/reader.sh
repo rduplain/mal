@@ -12,7 +12,7 @@ READ_ATOM() {
 }
 
 READ_FORM() {
-  TABLE_GET TOKEN $S
+  TOKEN_AT $S
   T="$R"
 
   S=$((S+1))
@@ -66,7 +66,7 @@ READ_SEQ() {
   set -- $R $1
 
   while :; do
-    TABLE_GET TOKEN $S
+    TOKEN_AT $S
     T="$R"
 
     if [ -z "$T" ]; then
@@ -95,8 +95,7 @@ READ_STR() {
 
   TOKENIZE
 
-  TABLE_LEN TOKEN
-  if [ $R -eq 0 ]; then
+  if [ $TOKEN_COUNT -eq 0 ]; then
     unset R; return 1
   fi
 

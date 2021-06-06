@@ -1,5 +1,5 @@
 EOL_AT() {
-  TABLE_GET TOKEN_ORD $1
+  INPUT_ORD_AT $1
   case $R in
     012 | 015) return 0;;
     *)         return 1;;
@@ -7,14 +7,14 @@ EOL_AT() {
 }
 
 NEXT_TOKEN() {
-  TABLE_GET TOKEN_ORD $S
+  INPUT_ORD_AT $S
 
   if [ $R -le 040 ] || [ $R -eq 054 ]; then
     S=$((S+1))
     unset R; return 1
   fi
 
-  TABLE_GET TOKEN_CHR $S
+  INPUT_CHR_AT $S
 
   case "$R" in
     "[" | "]" | "{" | "}" | "(" | ")" | "'" | '`' | "^" | "@")
@@ -22,7 +22,7 @@ NEXT_TOKEN() {
       ;;
     "~")
       R_STACK_PUSH
-      TABLE_GET TOKEN_CHR $((S+1))
+      INPUT_CHR_AT $((S+1))
       if [ "$R" = "@" ]; then
         R_STACK_POP
         R="~@"
@@ -45,17 +45,17 @@ NEXT_TOKEN() {
     '"')
       __s=$((S+1))
       while :; do
-        TABLE_GET TOKEN_CHR $__s
+        INPUT_CHR_AT $__s
         case "$R" in
           '"')   break         ;;
           "\\")  __s=$((__s+2));;
           *)     __s=$((__s+1));;
         esac
-        if [ $__s -gt $1 ]; then
+        if [ $__s -ge $1 ]; then
             _error 'expected ", got EOF'; S=$__s; unset R __s; return 1
         fi
       done
-      R="$(awk -- "BEGIN {print substr(ARGV[1], $S, $((__s-S+1)))}" "$T")"
+      SUBSTR $S $__s
       S=$((__s+1))
       ;;
     *)
@@ -63,7 +63,7 @@ NEXT_TOKEN() {
       while [ $__s -le $1 ] && ! SEP_AT $__s; do
         __s=$((__s+1))
       done
-      R="$(awk -- "BEGIN {print substr(ARGV[1], $S, $((__s-S)))}" "$T")"
+      SUBSTR $S $((__s-1))
       S=$__s
       ;;
   esac
@@ -76,7 +76,7 @@ SEP_AT() {
     return
   fi
 
-  TABLE_GET TOKEN_CHR $1
+  INPUT_CHR_AT $1
   case "$R" in
     " " | "[" | "]" | "{" | "}" | "(" | ")" | "'" | '"' | '`' | "," | ";")
       return 0
@@ -86,6 +86,14 @@ SEP_AT() {
   return 1
 }
 
+SUBSTR() {
+  while [ $1 -le $2 ]; do
+    INPUT_CHR_AT $1
+    set -- $(($1+1)) $2 "$3$R"
+  done
+  R="$3"
+}
+
 TOKENIZE() {
   if [ $# -ne 0 ]; then
     T="$@"
@@ -93,15 +101,15 @@ TOKENIZE() {
     T="$R"
   fi
 
-  TABLE_CLEAR TOKEN
-  TABLE_CLEAR TOKEN_CHR
-  TABLE_CLEAR TOKEN_ORD
+  TOKEN_COUNT=0
+  INPUT_CHR_COUNT=0
+  INPUT_ORD_COUNT=0
 
   S=1
-  for ord in $(printf "%s" "$T" | od -An -b -w256); do
+  for ord in $(printf "%s" "$T" | od -An -b -w2048); do
     eval "chr=\$CHR_$ord"
-    TABLE_PUSH TOKEN_CHR "$chr"
-    TABLE_PUSH TOKEN_ORD "$ord"
+    R="$chr"; INPUT_CHR_PUSH
+    R="$ord"; INPUT_ORD_PUSH
     S=$((S+1))
   done
 
@@ -110,7 +118,7 @@ TOKENIZE() {
   S=1
   while [ $S -lt $1 ]; do
     if NEXT_TOKEN $1; then
-      TABLE_PUSH TOKEN
+      TOKEN_PUSH
     fi
   done
 
@@ -119,6 +127,46 @@ TOKENIZE() {
 
 TOKENIZE_DEBUG() {
   TIMEIT TOKENIZE "$@"; echo >&2
-  TABLE_DUMP TOKEN
+
+  S=1
+  while [ $S -le $TOKEN_COUNT ]; do
+    TOKEN_AT $S
+    printf "%3d: %s\n" "$S" "$R"
+    S=$((S+1))
+  done
+
   unset R S T
+}
+
+
+# INPUT_CHR, INPUT_ORD, TOKEN - Specialized stacks for TOKENIZE.
+
+INPUT_CHR_AT() {
+  if [ $1 -gt $INPUT_CHR_COUNT ]; then R=; return 1; fi
+  eval "R=\"\$INPUT_CHR_${1}\""
+}
+
+INPUT_CHR_PUSH() {
+  INPUT_CHR_COUNT=$((INPUT_CHR_COUNT+1))
+  eval "INPUT_CHR_${INPUT_CHR_COUNT}=\"\$R\""
+}
+
+INPUT_ORD_AT() {
+  if [ $1 -gt $INPUT_ORD_COUNT ]; then R=; return 1; fi
+  eval "R=\"\$INPUT_ORD_${1}\""
+}
+
+INPUT_ORD_PUSH() {
+  INPUT_ORD_COUNT=$((INPUT_ORD_COUNT+1))
+  eval "INPUT_ORD_${INPUT_ORD_COUNT}=\"\$R\""
+}
+
+TOKEN_AT() {
+  if [ $1 -gt $TOKEN_COUNT ]; then R=; return 1; fi
+  eval "R=\"\$TOKEN_${1}\""
+}
+
+TOKEN_PUSH() {
+  TOKEN_COUNT=$((TOKEN_COUNT+1))
+  eval "TOKEN_${TOKEN_COUNT}=\"\$R\""
 }
