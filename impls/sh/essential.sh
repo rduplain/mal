@@ -121,9 +121,52 @@ TABLE_LEN() {
   eval "R=\$TABLE_${1}_LENGTH; [ -z \"\$R\" ] && R=0"
 }
 
+TABLE_MAP() {
+  TABLE_KEYS $1
+  for key in $R; do
+    TABLE_GET $1 $key
+    S=$key
+    T=$1
+    $2 $3 $4 $5 $6 $7 $8 $9
+  done
+  unset key R
+}
+
+TABLE_MAPCOPY() {
+  TABLE_NEW ${1%%[0-9]*}
+  set -- $1 $2 $R _ $3 $4 $5 $6 $7
+  TABLE_KEYS $1
+  for key in $R; do
+    set -- $1 $2 $3 $key $5 $6 $7 $8 $9
+    TABLE_GET $1 $4
+    S=$4
+    T=$1
+    $2 $5 $6 $7 $8 $9
+    if [ -n "$R" ]; then
+      TABLE_SET $3 $4
+    fi
+  done
+  unset key
+  R=$3
+}
+
+TABLE_MAPSET() {
+  set -- $1 $2 _ $3 $4 $5 $6 $7 $8
+  TABLE_KEYS $1
+  for key in $R; do
+    set -- $1 $2 $key $4 $5 $6 $7 $8 $9
+    TABLE_GET $1 $3
+    S=$3
+    T=$1
+    $2 $4 $5 $6 $7 $8 $9
+    TABLE_SET $1 $3
+  done
+  unset key R
+}
+
 TABLE_NEW() {
-  ID "TABLE"
-  R="TABLE$R"
+  ID TABLE
+  R="${1:-TABLE}$R"
 }
 
 TABLE_POP() {
@@ -167,6 +210,45 @@ _TABLE_DEC() {
 
 _TABLE_INC() {
   eval "TABLE_${1}_LENGTH=\$((TABLE_${1}_LENGTH+1))"
+}
+
+
+# KEY ENCODING - indirection to support non-shell identifiers as TABLE keys.
+#
+# TABLE key/value pairs are stored as global shell variables, meaning that keys
+# must not have any characters that are invalid in shell identifiers.
+#
+# Encode a key as a string of ordinal values when it has invalid characters.
+#
+# N.B. Encoding is to be done explicitly before TABLE access.
+
+KEY_ENCODE() {
+  case "$1" in
+    *[!A-Za-z0-9_]*)
+      R="ORD_${TABLE_SEP}_$(printf "%s" "$1" | od -An -b -w2048 | tr -d ' ')"
+      ;;
+    *)
+      R="$1"
+      ;;
+  esac
+}
+
+KEY_DECODE() {
+  case "$1" in
+    ORD_${TABLE_SEP}*)
+      set -- "$(printf "%s" "$1" |
+                  awk "{ gsub(\"ORD_${TABLE_SEP}_\", \"\");print }" |
+                  awk "{ gsub(/.{3}/, \"& \") }1")"
+      R=
+      for ord in $1; do
+        eval "chr=\$CHR_$ord"  # ascii.sh
+        R="$R$chr"
+      done
+      ;;
+    *)
+      R="$1"
+      ;;
+  esac
 }
 
 

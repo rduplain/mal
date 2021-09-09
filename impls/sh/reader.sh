@@ -19,6 +19,8 @@ READ_FORM() {
 
   case "$T" in
     "'" | '`' | "~" | "~@" | "@")
+      TABLE_NEW AST
+      set -- $R
       case "$T" in
         "'")  SYMBOL quote         ;;
         '`')  SYMBOL quasiquote    ;;
@@ -26,15 +28,23 @@ READ_FORM() {
         "~@") SYMBOL splice-unquote;;
         "@")  SYMBOL deref         ;;
       esac
-      set -- "$R"
+      TABLE_PUSH $1
       READ_FORM
-      LIST "$1" "$R"
+      TABLE_PUSH $1
+      LIST $1
       ;;
     "^")
-      SYMBOL with-meta; set -- "$R"
-      READ_FORM; set -- "$1" "$R"
+      TABLE_NEW AST
+      set -- $R
+      SYMBOL with-meta
+      TABLE_PUSH $1
       READ_FORM
-      LIST "$1" "$R" "$2"
+      R_STACK_PUSH
+      READ_FORM
+      TABLE_PUSH $1
+      R_STACK_POP
+      TABLE_PUSH $1
+      LIST $1
       ;;
     "(" | "[" | "{")
       case "$T" in
@@ -47,7 +57,7 @@ READ_FORM() {
           VECTOR "$R"
           ;;
         "{")
-          READ_SEQ "}"
+          READ_HASHMAP "}"
           HASHMAP "$R"
           ;;
       esac
@@ -61,8 +71,41 @@ READ_FORM() {
   esac
 }
 
+READ_HASHMAP() {
+  TABLE_NEW AST
+  set -- $R $1
+
+  while :; do
+    TOKEN_AT $S
+    T="$R"
+
+    if [ -z "$T" ]; then
+      E="expected '$2', got EOF"; return 1
+    fi
+
+    if [ "$T" = "$2" ]; then
+      S=$((S+1))
+      break
+    fi
+
+    READ_FORM
+    if [ -z "$3" ]; then
+      set -- $1 $2 $R
+    else
+      TABLE_SET $1 $3
+      set -- $1 $2
+    fi
+  done
+
+  if [ -n "$3" ]; then
+    E="map literal must contain an even number of forms"
+  fi
+
+  R=$1
+}
+
 READ_SEQ() {
-  TABLE_NEW
+  TABLE_NEW AST
   set -- $R $1
 
   while :; do

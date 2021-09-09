@@ -1,55 +1,56 @@
-# Stubs.
-ERROR() { R="$@"; E="$@"; }
-FALSE() { R="false"; }
-HASHMAP() { __seq "$1" "{" "}"; }
-KEYWORD() { R="$@"; }
-LIST() { __seq "$1" "(" ")" "$2" "$3"; }
-NIL() { R="nil"; }
-NUMBER() { R="$@"; }
-STRING() { R="$@"; }
-SYMBOL() { R="$@"; }
-TRUE() { R="true"; }
-VECTOR() { __seq "$1" "[" "]"; }
+# FUNCTION             TYPE     VALUE  META
+FALSE()    { VALUE_NEW FALSE               ; }
+FN()       { VALUE_NEW FN        "$1"  "$2"; }
+HASHMAP()  { VALUE_NEW HASHMAP   "$1"  "$2"; }
+KEYWORD()  { VALUE_NEW KEYWORD   "$1"      ; }
+LIST()     { VALUE_NEW LIST      "$1"  "$2"; }
+NATIVEFN() { VALUE_NEW NATIVEFN  "$1"  "$2"; }
+NIL()      { VALUE_NEW NIL                 ; }
+NUMBER()   { VALUE_NEW NUMBER    "$1"      ; }
+STRING()   { VALUE_NEW STRING    "$1"      ; }
+SYMBOL()   { VALUE_NEW SYMBOL    "$1"      ; }
+TRUE()     { VALUE_NEW TRUE                ; }
+VECTOR()   { VALUE_NEW VECTOR    "$1"  "$2"; }
 
-__seq() {
-  # For testing step1.
-
-  if ! __startswith TABLE "$1"; then
-    __r="$2$1"
-  else
-    __r="$2"
-    TABLE_KEYS $1
-    __table_keys="$R"
-    for __table_key in $R; do
-      TABLE_GET $1 "$__table_key"
-      if [ -n "$R" ] && [ "$__r" != "$2" ]; then
-        __r="$__r "
-      fi
-      __r="$__r$R"
-    done
-  fi
-
-  if [ -n "$4" ]; then
-    __r="$__r $4"
-  fi
-
-  if [ -n "$5" ]; then
-    __r="$__r $5"
-  fi
-
-  if [ -z "$__r" ]; then
-    __r="$2"
-  fi
-  __r="$__r$3"
-  R="$__r"
-  unset __r __table_key __table_keys
+VALUE_DEL() {
+  eval "unset VALUE_${1}_TYPE VALUE_${1}_VALUE VALUE_${1}_META"
 }
 
-__startswith() {
-  # For testing step1.
+VALUE_GET() {
+  eval "R=\"\$VALUE_${1}_VALUE\""
+}
 
-  __sub="$1"
-  shift
+VALUE_META() {
+  eval "R=\"\$VALUE_${1}_META\""
+}
 
-  case "$*" in "$__sub"*) unset __sub; return 0;; esac; unset __sub; return 1
+VALUE_NEW() {
+  case $1 in
+    FALSE|NIL|TRUE)
+      R=$1
+      ;;
+    *)
+      ID VALUE
+      eval "
+        VALUE_${R}_TYPE=\"\$1\";
+        VALUE_${R}_VALUE=\"\$2\";
+        VALUE_${R}_META=\"\$3\"
+      "
+      ;;
+  esac
+}
+
+VALUE_SET() {
+  eval "VALUE_${1}_VALUE=\"\${2:-\$R}\""
+}
+
+VALUE_TYPE() {
+  case $1 in
+    FALSE|NIL|TRUE)
+      R=$1
+      ;;
+    *)
+      eval "R=\"\$VALUE_${1}_TYPE\""
+      ;;
+  esac
 }

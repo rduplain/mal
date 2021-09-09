@@ -107,7 +107,7 @@ TOKENIZE() {
 
   S=1
   for ord in $(printf "%s" "$T" | od -An -b -w2048); do
-    eval "chr=\$CHR_$ord"
+    eval "chr=\$CHR_$ord"  # ascii.sh
     R="$chr"; INPUT_CHR_PUSH
     R="$ord"; INPUT_ORD_PUSH
     S=$((S+1))
