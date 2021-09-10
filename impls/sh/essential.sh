@@ -169,6 +169,37 @@ TABLE_NEW() {
   R="${1:-TABLE}$R"
 }
 
+TABLE_NTH() {
+  R=
+  count=0
+
+  for key in 0 1 2 3 4 5 6 7 8 9; do
+    TABLE_GET $1 $key
+    if [ -n "$R" ]; then
+      count=$((count+1))
+      if [ $count -ge $2 ]; then
+        return
+      fi
+    fi
+  done
+
+  count=0
+
+  TABLE_KEYS $1
+  for key in $R; do
+    TABLE_GET $1 $key
+    if [ -n "$R" ]; then
+      count=$((count+1))
+      if [ $count -ge $2 ]; then
+        return
+      fi
+    fi
+  done
+
+  R=
+  unset count
+}
+
 TABLE_POP() {
   TABLE_LEN $1
   TABLE_POP_POSITION=$R

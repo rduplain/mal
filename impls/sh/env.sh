@@ -29,9 +29,30 @@ ENV_DUMP() {
   unset ENV_DUMP_KEY ENV_DUMP_KEYS ENV_DUMP_VALUE
 }
 
+ENV_FIND() {
+  R=
+  if [ $# -eq 2 ]; then
+    KEY_ENCODE "$2"
+    set -- $1 "$2" $R
+  fi
+  TABLE_GET $1 $3
+  if [ -n "$R" ]; then
+    R=$1
+  else
+    ENV_OUTER $1
+    if [ -n "$R" ]; then
+      ENV_FIND $R "$2" $3
+    else
+      R=
+    fi
+  fi
+}
+
 ENV_GET() {
   KEY_ENCODE "$2"
-  TABLE_GET $1 $R
+  set -- $1 "$2" $R
+  ENV_FIND $1 "$2" $3
+  TABLE_GET $R $3
 }
 
 ENV_LEN() {
@@ -40,6 +61,14 @@ ENV_LEN() {
 
 ENV_NEW() {
   TABLE_NEW ENV
+
+  if [ $# -eq 1 ]; then
+    eval "ENV_${R}_OUTER=$1"
+  fi
+}
+
+ENV_OUTER() {
+  eval "R=\$ENV_${1}_OUTER"
 }
 
 ENV_SET() {
